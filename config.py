@@ -24,6 +24,7 @@ IBKR_READONLY = True  # Always read-only mode
 FLASK_HOST = os.getenv('FLASK_HOST', '0.0.0.0')
 FLASK_PORT = int(os.getenv('FLASK_PORT', '5000'))
 WEBHOOK_SECRET = os.getenv('WEBHOOK_SECRET', '')
+ENABLE_NGROK = os.getenv('ENABLE_NGROK', 'false').lower() == 'true'
 
 # ==================== Trading Settings ====================
 DEFAULT_SYMBOL = 'SPX'  # Default company

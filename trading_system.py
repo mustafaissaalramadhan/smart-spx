@@ -456,7 +456,7 @@ class TradingSystem:
             logger.error(f"❌ Error checking profit target: {e}")
             return (True, "Error occurred, allowing trade")  # Fail-safe
     
-    async def process_signal(self, symbol: str, signal_type: str):
+    async def process_signal(self, symbol: str, signal_type: str, quantity: int = 1):
         """Process incoming signal from TradingView"""
         # Increment queue counter
         self._signal_queue_count += 1
@@ -477,7 +477,7 @@ class TradingSystem:
                 logger.info(f"🔒 Lock acquired for {signal_type} {symbol} - Starting processing...")
                 print(f"🔓 Lock acquired - Processing {signal_type} {symbol}...\n")
                 
-                await self._process_signal_internal(symbol, signal_type, queue_position)
+                await self._process_signal_internal(symbol, signal_type, queue_position, quantity)
                 
                 logger.info(f"🔓 Lock released for {signal_type} {symbol}")
                 print(f"\n✅ Processing complete - Lock released\n")
@@ -490,7 +490,7 @@ class TradingSystem:
                 import traceback
                 traceback.print_exc()
     
-    async def _process_signal_internal(self, symbol: str, signal_type: str, queue_position: int):
+    async def _process_signal_internal(self, symbol: str, signal_type: str, queue_position: int, quantity: int = 1):
         """Internal signal processing (called within lock)"""
         start_time = datetime.now()
         try:
@@ -695,7 +695,8 @@ class TradingSystem:
                 entry_price=entry_price,
                 expiry=expiry_formatted,
                 bid=bid,
-                ask=ask
+                ask=ask,
+                quantity=quantity
             )
             logger.info(f"✅ Trade created in database: ID {trade_id}")
             print(f"✅ Trade created in database: ID {trade_id}")

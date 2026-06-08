@@ -342,10 +342,12 @@ def run_webhook_server():
     print(f"📍 Status URL: http://localhost:{config.FLASK_PORT}/status")
     print("=" * 60)
     
-    # Start Ngrok tunnel
-    ngrok_started = start_ngrok()
+    # Start Ngrok tunnel only for local desktop use.
+    ngrok_started = False
+    if getattr(config, 'ENABLE_NGROK', False):
+        ngrok_started = start_ngrok()
     
-    if not ngrok_started:
+    if getattr(config, 'ENABLE_NGROK', False) and not ngrok_started:
         logger.warning("⚠️  Running without Ngrok (local only)")
         print("⚠️  Running without Ngrok (local only)")
     
@@ -360,4 +362,5 @@ def run_webhook_server():
             use_reloader=False
         )
     finally:
-        stop_ngrok()
+        if ngrok_started:
+            stop_ngrok()
