@@ -1,0 +1,34 @@
+{
+  "_comment": "ملف نصوص إشعارات التيليجرام - يمكنك تعديل النصوص مباشرة هنا",
+  "_instructions": "استخدم {variable_name} للمتغيرات. مثال: {contract}, {strike}, {entry_price:.2f}",
+  
+  "position_opened": "‏{emoji} {symbol} {type} – {strike} عقد مقترح\n‏━━━━━━━━━━━━━━\n‏\n‏🗓 اليوم | Today\n‏💰 {entry_price:.2f}$\n‏📊 الدخول | Entry: {bid:.2f}$ – {ask:.2f}$\n‏\n‏\n‏⚠️ لأغراض تعليمية فقط\n‏Educational purposes only\n‏التداول مسؤوليتك الشخصية بالكامل\n‏Trading is your complete personal responsibility\n‏━━━━━━━━━━━━━━\n‏عقد اليوم داخل المجموعة | Today's trade in the group ✅\n‏👉 {channel_link} 🚀",
+  
+  "new_high": "‏🔔 إشعار تحقيق أرباح بالعقد | Profit Alert\n‏━━━━━━━━━━━━━━\n‏📋 {symbol} {strike:.0f} {type} – {expiry}\n‏\n‏💰 سعر الدخول | Entry: {entry_price:.2f}$\n‏📈 أعلى سعر | High: {highest_price:.2f}$\n‏💵 الربح | Profit: +{profit_dollars:.0f}$ (≈ +{profit_sar:.1f}﷼)\n‏\n‏\n‏⚠️ يفضّل الخروج بربح قرب 100$\n‏Consider exit near +100$\n‏الخروج أو البقاء قرارك الشخصي بالكامل\n‏Exit or stay is your complete personal decision\n‏\n‏━━━━━━━━━━━━━━\n‏عقد اليوم داخل المجموعة | Today's trade in the group ✅\n‏👉 {channel_link} 🚀",
+  
+  "profit_target_hit": "‏🎯🎯 <b>Target Hit | ضرب الهدف!</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n‏✅ <b>الربح | Profit:</b> +{profit_dollars:.0f}$ (≈ +{profit_sar:.1f}﷼)\n\n‏📋 <b>العقد | Contract:</b> {symbol} {strike} {type}\n‏💰 <b>سعر الدخول | Entry:</b> ${entry_price:.2f}\n‏🎯 <b>سعر الخروج | Exit:</b> ${exit_price:.2f}\n\n━━━━━━━━━━━━━━━━━━━━━━━\n‏🚀 <b>صفقات مباشرة داخل المجموعة | Live Trades</b>\n‏👉 {channel_link}",
+  
+  "stop_loss_hit": "‏🛑 <b>Stop Loss Hit | وقف الخسارة!</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n‏❌ <b>الخسارة | Loss:</b> {profit_dollars:.0f}$ (≈ {profit_sar:.1f}﷼)\n\n‏📋 <b>العقد | Contract:</b> {symbol} {strike} {type}\n‏💰 <b>سعر الدخول | Entry:</b> ${entry_price:.2f}\n‏🚪 <b>سعر الخروج | Exit:</b> ${exit_price:.2f}\n\n━━━━━━━━━━━━━━━━━━━━━━━\n‏🚀 <b>صفقات مباشرة داخل المجموعة | Live Trades</b>\n‏👉 {channel_link}",
+  
+  "trailing_stop_hit": "‏📉 <b>Trailing Stop Hit | وقف الخسارة المتحرك!</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n‏✅ <b>الربح المحقق | Profit Secured:</b> +{profit_dollars:.0f}$ (≈ +{profit_sar:.1f}﷼)\n\n‏📋 <b>العقد | Contract:</b> {symbol} {strike} {type}\n‏💰 <b>سعر الدخول | Entry:</b> ${entry_price:.2f}\n‏🚪 <b>سعر الخروج | Exit:</b> ${exit_price:.2f}\n\n━━━━━━━━━━━━━━━━━━━━━━━\n‏🚀 <b>صفقات مباشرة داخل المجموعة | Live Trades</b>\n‏👉 {channel_link}",
+  
+  "capital_protection_hit": "‏🛡️ <b>Capital Protection | حماية رأس المال!</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n‏✅ <b>الربح المؤمّن | Protected Profit:</b> +{profit_dollars:.0f}$ (≈ +{profit_sar:.1f}﷼)\n\n‏📋 <b>العقد | Contract:</b> {symbol} {strike} {type}\n‏💰 <b>سعر الدخول | Entry:</b> ${entry_price:.2f}\n‏🚪 <b>سعر الخروج | Exit:</b> ${exit_price:.2f}\n\n━━━━━━━━━━━━━━━━━━━━━━━\n‏🚀 <b>صفقات مباشرة داخل المجموعة | Live Trades</b>\n‏👉 {channel_link}",
+  
+  "position_closed": "‏🎯 <b>Position Closed | إغلاق الصفقة</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n‏{profit_emoji} <b>النتيجة | Result:</b> {profit_dollars:+.0f}$ (≈ {profit_sar:+.1f}﷼)\n\n‏📋 <b>العقد | Contract:</b> {symbol} {strike} {type}\n‏💰 <b>سعر الدخول | Entry:</b> ${entry_price:.2f}\n‏🚪 <b>سعر الخروج | Exit:</b> ${exit_price:.2f}\n\n━━━━━━━━━━━━━━━━━━━━━━━\n‏🚀 <b>صفقات مباشرة داخل المجموعة | Live Trades</b>\n‏👉 {channel_link}",
+  
+  "duplicate_prevented": "‏✅ <b>العقود النشطة تحت المتابعة</b>\n‏📋 <b>العقد:</b> {symbol} ${strike} {expiry} {type}\n\n━━━━━━━━━━━━━━━━━━━\n\n‏✅ <b>Active contracts under monitoring</b>\n‏📋 <b>Contract:</b> {symbol} ${strike} {expiry} {type}",
+  
+  "partial_close": "‏🔄 <b>Partial Close | إغلاق جزئي</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n‏{emoji} <b>العقد | Contract:</b> {contract}\n\n‏💰 <b>سعر الدخول | Entry:</b> ${entry_price:.2f}\n‏🚪 <b>سعر الخروج | Exit:</b> ${exit_price:.2f}\n\n‏📦 <b>المُغلق | Closed:</b> {closed_qty} عقد\n‏📊 <b>المتبقي | Remaining:</b> {remaining_qty} عقد\n\n‏💵 <b>ربح/خسارة | P/L:</b> {profit_dollars:+.0f}$ (≈ {profit_sar:+.0f}﷼ | {profit_pct:+.0f}%)\n\n━━━━━━━━━━━━━━━━━━━━━━━\n‏🚀 <b>صفقات مباشرة داخل المجموعة | Live Trades</b>\n‏👉 {channel_link}",
+  
+  "target_achieved": "‏🎯 Target Achieved | هدف محقق!\n‏━━━━━━━━━━━━━━━━━━━━━━━\n‏💰 الربح | +{profit_dollars:.0f}$ (≈ +{profit_sar:.1f}﷼)\n‏\n‏📋 العقد |Contract\n‏  {symbol} {strike:.0f} {type} – {expiry}\n‏💵 سعر الدخول | Entry: {entry_price:.2f}$\n‏📊 السعر الحالي | Current: {current_price:.2f}$\n‏\n‏━━━━━━━━━━━━━━━━━━━━━━━\n‏🚀 صفقات مباشرة داخل المجموعة | Live Trades\n‏👉 {channel_link}",
+  
+  "signal_received": "🔍 <b>إشارة {type} مستلمة</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n📡 النوع: <b>{type}</b>\n⏰ الوقت: {time}\n━━━━━━━━━━━━━━━━━━━━━━━",
+  
+  "trade_preparing": "<b>【📌 متابعة السوق】</b>\n👀 شمّينا ريحة {type_ar}… لحظة نختار عقد الأوبشن.\n\n<b>【📌 Market Watch】</b>\n👀 We smell a {type}… give us a moment to pick the options",
+  
+  "contract_found": "✅ <b>عقود {type} متاحة</b>\n\n  الأخير    |   عرض   |   طلب\n━━━━━━━━━━━━━━━━━━━━━━━",
+  
+  "price_update": "🔄 <b>تحديث مستمر</b> ({time})\n━━━━━━━━━━━━━━━━━━━━━━━\nالعقد: <code>{contract}</code>\n━━━━━━━━━━━━━━━━━━━━━━━\n  الأخير    |   عرض   |   طلب\n   <b>{last:.2f}    |   {current_price:.2f}   |   {ask:.2f}</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n📊 سعر الدخول: <b>{entry_price:.2f}</b>\n📈 أعلى سعر: <b>{highest_price:.2f}</b>\n{profit_emoji} الربح: <b>{profit:+.2f} ({profit_pct:+.1f}%)</b>\n━━━━━━━━━━━━━━━━━━━━━━━",
+  
+  "daily_summary": "📊 <b>ملخص اليوم</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n✅ الأرباح: <b>${total_profit:.2f}</b>\n❌ الخسائر: <b>${total_loss:.2f}</b>\n💰 الصافي: <b>${net_profit:.2f}</b>\n📈 صفقات مربحة: {winning_trades}\n📉 صفقات خاسرة: {losing_trades}\n━━━━━━━━━━━━━━━━━━━━━━━"
+}

@@ -1,0 +1,50 @@
+{
+  "_comment": "مثال: نصوص بديلة مختصرة وبسيطة",
+  "_note": "انسخ النص الذي يعجبك إلى telegram_texts.json",
+  
+  "أمثلة لـ position_opened": {
+    "نمط 1 - مختصر": "✅ دخول {type}\n{contract} | ${entry_price:.2f}\n{time}",
+    
+    "نمط 2 - تفصيلي": "🚀 <b>فتح صفقة {type} جديدة!</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n📋 العقد: <code>{contract}</code>\n💰 Strike: <b>{strike}</b>\n💵 سعر الدخول: <b>${entry_price:.2f}</b>\n📊 Bid/Ask: {bid:.2f} / {ask:.2f}\n⏰ التوقيت: {time}\n━━━━━━━━━━━━━━━━━━━━━━━",
+    
+    "نمط 3 - احترافي": "✅ <b>ENTRY {type}</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n📍 Contract: <code>{contract}</code>\n💰 Price: <b>${entry_price:.2f}</b>\n🎯 Strike: <b>{strike}</b>\n⏰ {time}"
+  },
+  
+  "أمثلة لـ new_high": {
+    "نمط 1 - مختصر": "📈 أعلى سعر!\n{contract}\nالسعر: ${current_price:.2f}\nالربح: +${profit:.2f} (+{profit_pct:.1f}%)",
+    
+    "نمط 2 - تفصيلي": "🎉 <b>أعلى سعر جديد!</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n📋 {contract}\n\n💰 السعر الحالي: <b>${current_price:.2f}</b>\n📊 سعر الدخول: ${entry_price:.2f}\n📈 أعلى سعر: <b>${highest_price:.2f}</b>\n\n✅ الربح: <b>+${profit:.2f}</b>\n📊 النسبة: <b>+{profit_pct:.1f}%</b>\n\n⏰ {time}"
+  },
+  
+  "أمثلة لـ profit_target_hit": {
+    "نمط 1 - مختصر": "🎯 ضرب الهدف!\n{contract}\nربح: ${pnl:.2f} ({profit_pct:.1f}%)\nالخروج: ${exit_price:.2f}",
+    
+    "نمط 2 - احتفالي": "🎉🎯 <b>تم ضرب الهدف بنجاح!</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n💚 <b>الربح: +${pnl:.2f}</b>\n📊 النسبة: <b>+{profit_pct:.1f}%</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n📋 {contract}\n💵 الدخول: ${entry_price:.2f}\n💵 الخروج: ${exit_price:.2f}\n📈 أعلى سعر: ${highest_price:.2f}\n⏰ {time}\n━━━━━━━━━━━━━━━━━━━━━━━\n🎊 Congratulations!"
+  },
+  
+  "أمثلة لـ stop_loss_hit": {
+    "نمط 1 - مختصر": "🛑 Stop Loss\n{contract}\nخسارة: -${pnl:.2f} ({profit_pct:.1f}%)",
+    
+    "نمط 2 - تفصيلي": "🛑 <b>وقف الخسارة!</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n❌ الخسارة: <b>-${pnl:.2f}</b>\n📉 النسبة: <b>{profit_pct:.1f}%</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n📋 {contract}\n💵 الدخول: ${entry_price:.2f}\n💵 الخروج: ${exit_price:.2f}\n⏰ {time}"
+  },
+  
+  "أمثلة لـ trailing_stop_hit": {
+    "نمط 1 - مختصر": "📉 Trailing Stop\n{contract}\nربح: ${pnl:.2f}\nنزول من القمة: {drop_from_peak:.1f}%",
+    
+    "نمط 2 - تفصيلي": "📉 <b>وقف متحرك!</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n{profit_emoji} الربح: <b>${pnl:.2f}</b> ({profit_pct:.1f}%)\n💎 نزول من القمة: <b>{drop_from_peak:.1f}%</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n📋 {contract}\n💵 الدخول: ${entry_price:.2f}\n💵 أعلى سعر: ${highest_price:.2f}\n💵 الخروج: ${exit_price:.2f}\n⏰ {time}"
+  },
+  
+  "أمثلة لـ duplicate_prevented": {
+    "نمط 1 - مختصر": "⚠️ صفقة مكررة!\nالسبب: {reason}\n{symbol} {type} Strike {strike}",
+    
+    "نمط 2 - تفصيلي": "🚫 <b>تم رفض الصفقة!</b>\n━━━━━━━━━━━━━━━━━━━━━━━\n❌ السبب: <b>{reason}</b>\n\n📊 التفاصيل:\n• الرمز: {symbol}\n• النوع: {type}\n• Strike: {strike}\n\n💡 <i>تم الرفض لحمايتك من الصفقات المكررة</i>\n⏰ {time}"
+  },
+  
+  "ملاحظات": {
+    "1": "استخدم النمط الذي يعجبك",
+    "2": "يمكنك دمج أجزاء من أنماط مختلفة",
+    "3": "الإيموجي اختياري - يمكن حذفه أو تغييره",
+    "4": "الخطوط الفاصلة ━━━ اختيارية",
+    "5": "تأكد من الحفاظ على المتغيرات {} كما هي"
+  }
+}
