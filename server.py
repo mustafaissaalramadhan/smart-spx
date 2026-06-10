@@ -63,7 +63,12 @@ async def start_runtime(runtime):
 
 def main():
     loop = asyncio.new_event_loop()
-    loop_thread = threading.Thread(target=loop.run_forever, daemon=True)
+
+    def run_loop():
+        asyncio.set_event_loop(loop)
+        loop.run_forever()
+
+    loop_thread = threading.Thread(target=run_loop, daemon=True)
     loop_thread.start()
 
     runtime = HeadlessRuntime(loop)
