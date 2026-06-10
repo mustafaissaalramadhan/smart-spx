@@ -435,6 +435,27 @@ def _admin_page(message=''):
         active = ' active' if symbol == selected_symbol else ''
         label = 'الكل | ALL' if symbol == 'ALL' else symbol
         symbol_tabs.append(f'<a class="tab{active}" href="{_admin_url(symbol)}">{label}</a>')
+    manual_buttons = []
+    manual_symbols = config.SUPPORTED_SYMBOLS if selected_symbol == 'ALL' else [selected_symbol]
+    for symbol in manual_symbols:
+        safe_symbol = html.escape(symbol)
+        manual_buttons.append(f"""
+        <div class="manual-card">
+          <b>{safe_symbol}</b>
+          <form method="post" action="/admin/manual" class="manual-form">
+            {selected_input}
+            <input type="hidden" name="symbol" value="{safe_symbol}">
+            <input type="hidden" name="type" value="CALL">
+            <button type="submit" class="call">CALL</button>
+          </form>
+          <form method="post" action="/admin/manual" class="manual-form">
+            {selected_input}
+            <input type="hidden" name="symbol" value="{safe_symbol}">
+            <input type="hidden" name="type" value="PUT">
+            <button type="submit" class="put">PUT</button>
+          </form>
+        </div>
+        """)
     return f"""
 <!doctype html>
 <html lang="en">
@@ -453,6 +474,13 @@ def _admin_page(message=''):
     .tabs {{ display:flex; gap:8px; flex-wrap:wrap; margin:14px 0; }}
     .tab {{ color:#dbe7f3; text-decoration:none; background:#182029; border:1px solid #2b3745; padding:9px 14px; }}
     .tab.active {{ background:#2f80ed; border-color:#2f80ed; color:#fff; }}
+    .manual-grid {{ display:grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap:10px; }}
+    .manual-card {{ background:#0f151c; border:1px solid #2b3745; padding:12px; display:grid; grid-template-columns: 1fr 1fr; gap:8px; align-items:center; }}
+    .manual-card b {{ grid-column:1 / -1; font-size:20px; }}
+    .manual-form {{ margin:0; }}
+    .manual-card button {{ width:100%; font-weight:bold; }}
+    .call {{ background:#16a34a; }}
+    .put {{ background:#dc2626; }}
     .panel {{ background:#182029; border:1px solid #2b3745; padding:16px; margin:16px 0; }}
     .msg {{ background:#123d2b; border:1px solid #2e8b57; padding:10px; margin:12px 0; }}
     .cards {{ display:grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap:10px; margin:16px 0; }}
@@ -476,7 +504,7 @@ def _admin_page(message=''):
     th, td {{ border-bottom:1px solid #2b3745; padding:8px; text-align:left; }}
     th {{ color:#9aa7b5; }}
     .table-wrap {{ overflow:auto; }}
-    @media (max-width: 1100px) {{ .row, .settings-grid, .risk-grid, .cards, .alert-grid {{ grid-template-columns: 1fr; }} }}
+    @media (max-width: 1100px) {{ .row, .settings-grid, .risk-grid, .cards, .alert-grid, .manual-grid {{ grid-template-columns: 1fr; }} }}
   </style>
 </head>
 <body>
@@ -499,6 +527,11 @@ def _admin_page(message=''):
     <div class="card">الرصيد | Balance<b>{html.escape(balance or 'N/A')}</b></div>
     <div class="card">الصفقات النشطة | Active Trades<b>{len(active_trades)}</b></div>
     <div class="card">إشارات اليوم | Signals Today<b>{signals['total']}</b></div>
+  </section>
+
+  <section class="panel">
+    <h2>دخول يدوي | Manual Entry</h2>
+    <div class="manual-grid">{''.join(manual_buttons)}</div>
   </section>
 
   <section class="panel">
@@ -673,6 +706,28 @@ def admin_test_telegram():
         logger.exception("Telegram test failed")
         msg = f'Telegram test error: {e}'
     return _redirect_admin_msg(msg)
+
+@app.route('/admin/manual', methods=['POST'])
+def admin_manual_entry():
+    if not _check_admin_auth():
+        return _admin_required()
+
+    symbol = request.form.get('symbol', '').strip().upper()
+    signal_type = request.form.get('type', '').strip().upper()
+
+    if symbol not in config.SUPPORTED_SYMBOLS:
+        return _redirect_admin_msg(f'Unsupported symbol: {symbol}')
+    if signal_type not in ('CALL', 'PUT'):
+        return _redirect_admin_msg(f'Invalid signal type: {signal_type}')
+    if not gui_instance:
+        return _redirect_admin_msg('System is not ready')
+
+    try:
+        gui_instance.trigger_manual_button(symbol, signal_type, 1)
+        return _redirect_admin_msg(f'Manual {signal_type} sent for {symbol}')
+    except Exception as e:
+        logger.exception("Manual entry failed")
+        return _redirect_admin_msg(f'Manual entry error: {e}')
 
 @app.route('/admin/alert/add', methods=['POST'])
 def admin_add_alert():
