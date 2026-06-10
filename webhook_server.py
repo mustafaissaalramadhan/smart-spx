@@ -220,6 +220,13 @@ def _type_options(current):
         opts.append(f'<option value="{value}" {selected}>{value}</option>')
     return ''.join(opts)
 
+def _repeat_options(current):
+    opts = []
+    for value, label in (('daily', 'يومي / Daily'), ('once', 'مرة واحدة / Once')):
+        selected = 'selected' if value == current else ''
+        opts.append(f'<option value="{value}" {selected}>{label}</option>')
+    return ''.join(opts)
+
 def _upsert_env(values):
     env_path = '.env'
     existing = {}
@@ -263,6 +270,7 @@ def _apply_runtime_settings(values):
 def _admin_page(message=''):
     db = DatabaseManager()
     channels = db.get_all_telegram_channels()
+    alerts = db.get_all_telegram_alerts()
     active_trades = db.get_active_trades()
     closed_trades = db.get_closed_trades()
     signals = db.get_signal_count(datetime.now().strftime('%Y-%m-%d'))
@@ -288,6 +296,39 @@ def _admin_page(message=''):
         """)
 
     rows_html = "\n".join(rows) or '<p class="muted">No channels yet.</p>'
+    alert_rows = []
+    for alert in alerts:
+        alert_id = int(alert['id'])
+        status = 'مفعل / Active' if alert.get('active') else 'متوقف / Off'
+        repeat = 'يومي / Daily' if alert.get('repeat_mode') == 'daily' else 'مرة واحدة / Once'
+        alert_rows.append(f"""
+        <tr>
+          <td>{_fmt(alert_id)}</td>
+          <td>{_fmt(alert.get('alert_time'))}</td>
+          <td>{html.escape(repeat)}</td>
+          <td>{html.escape(status)}</td>
+          <td>{_fmt(alert.get('last_sent'), '-')}</td>
+          <td>{html.escape((alert.get('message') or '')[:160])}</td>
+          <td>
+            <form method="post" action="/admin/alert/{alert_id}/toggle" class="inline"><button type="submit">تشغيل/إيقاف</button></form>
+            <form method="post" action="/admin/alert/{alert_id}/delete" class="inline"><button type="submit" class="danger">حذف</button></form>
+          </td>
+        </tr>
+        """)
+    alerts_html = ''.join(alert_rows) or '<tr><td colspan="7" class="muted">لا توجد تنبيهات / No alerts.</td></tr>'
+    command_rows = []
+    for symbol in config.SUPPORTED_SYMBOLS:
+        for side in ('CALL', 'PUT'):
+            payload = html.escape(f'{{"type": "{side}", "symbol": "{symbol}"}}')
+            payload_qty = html.escape(f'{{"type": "{side}", "symbol": "{symbol}", "quantity": 1}}')
+            command_rows.append(f"""
+            <tr>
+              <td>{symbol}</td>
+              <td>{side}</td>
+              <td><textarea readonly>{payload}</textarea></td>
+              <td><textarea readonly>{payload_qty}</textarea></td>
+            </tr>
+            """)
     message_html = f'<div class="msg">{html.escape(message)}</div>' if message else ''
     webhook_url = html.escape(request.host_url.rstrip('/') + '/webhook')
     status_text = 'running' if gui_instance and getattr(gui_instance, 'system_running', False) else 'stopped'
@@ -340,12 +381,16 @@ def _admin_page(message=''):
     button {{ background:#2f80ed; color:white; border:0; padding:9px 12px; cursor:pointer; }}
     .danger {{ background:#c24141; }}
     .actions {{ display:flex; gap:8px; flex-wrap:wrap; }}
+    .inline {{ display:inline; }}
+    .alert-grid {{ display:grid; grid-template-columns: 130px 160px 1fr 145px; gap:10px; align-items:end; }}
+    textarea {{ width:100%; min-height:54px; background:#0f151c; color:#fff; border:1px solid #344252; padding:8px; box-sizing:border-box; }}
+    .alert-grid textarea {{ min-height:92px; }}
     code {{ background:#0f151c; padding:3px 6px; }}
     table {{ width:100%; border-collapse:collapse; font-size:14px; }}
     th, td {{ border-bottom:1px solid #2b3745; padding:8px; text-align:left; }}
     th {{ color:#9aa7b5; }}
     .table-wrap {{ overflow:auto; }}
-    @media (max-width: 1100px) {{ .row, .settings-grid, .risk-grid, .cards {{ grid-template-columns: 1fr; }} }}
+    @media (max-width: 1100px) {{ .row, .settings-grid, .risk-grid, .cards, .alert-grid {{ grid-template-columns: 1fr; }} }}
   </style>
 </head>
 <body>
@@ -409,6 +454,33 @@ def _admin_page(message=''):
       <input name="token" placeholder="Bot token">
       <button type="submit">إضافة / Add</button>
     </form>
+  </section>
+
+  <section class="panel">
+    <h2>تنبيهات تيليجرام المجدولة | Scheduled Telegram Alerts</h2>
+    <form class="alert-grid" method="post" action="/admin/alert/add">
+      <label>الوقت | Time<input name="alert_time" type="time" required></label>
+      <label>التكرار | Repeat<select name="repeat_mode">{_repeat_options('daily')}</select></label>
+      <label>الرسالة | Message<textarea name="message" required placeholder="اكتب رسالة التنبيه هنا"></textarea></label>
+      <button type="submit">إضافة تنبيه | Add Alert</button>
+    </form>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Time</th><th>Repeat</th><th>Status</th><th>Last Sent</th><th>Message</th><th>Actions</th></tr></thead>
+        <tbody>{alerts_html}</tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>أوامر TradingView للنسخ | TradingView Alert Messages</h2>
+    <p class="muted">انسخ النص المناسب وضعه في خانة Message داخل TradingView Alert. رابط الويب هوك بالأعلى.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Symbol</th><th>Type</th><th>Basic</th><th>With Quantity</th></tr></thead>
+        <tbody>{''.join(command_rows)}</tbody>
+      </table>
+    </div>
   </section>
 
   <section class="panel actions">
@@ -486,6 +558,35 @@ def admin_test_telegram():
         logger.exception("Telegram test failed")
         msg = f'Telegram test error: {e}'
     return redirect(f'/admin?msg={requests.utils.quote(msg)}')
+
+@app.route('/admin/alert/add', methods=['POST'])
+def admin_add_alert():
+    if not _check_admin_auth():
+        return _admin_required()
+    alert_time = request.form.get('alert_time', '').strip()
+    message = request.form.get('message', '').strip()
+    repeat_mode = request.form.get('repeat_mode', 'daily').strip()
+    if not alert_time or not message:
+        return redirect('/admin?msg=Alert time and message are required')
+    DatabaseManager().add_telegram_alert(alert_time, message, repeat_mode)
+    return redirect('/admin?msg=Scheduled alert added')
+
+@app.route('/admin/alert/<int:alert_id>/delete', methods=['POST'])
+def admin_delete_alert(alert_id):
+    if not _check_admin_auth():
+        return _admin_required()
+    DatabaseManager().delete_telegram_alert(alert_id)
+    return redirect('/admin?msg=Scheduled alert deleted')
+
+@app.route('/admin/alert/<int:alert_id>/toggle', methods=['POST'])
+def admin_toggle_alert(alert_id):
+    if not _check_admin_auth():
+        return _admin_required()
+    db = DatabaseManager()
+    alert = next((item for item in db.get_all_telegram_alerts() if item['id'] == alert_id), None)
+    if alert:
+        db.toggle_alert_active(alert_id, not bool(alert.get('active')))
+    return redirect('/admin?msg=Scheduled alert updated')
 
 @app.route('/admin/settings', methods=['POST'])
 def admin_save_settings():

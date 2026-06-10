@@ -7,6 +7,7 @@ import asyncio
 import logging
 import threading
 from logging.handlers import RotatingFileHandler
+from datetime import datetime
 
 import config
 import webhook_server
@@ -36,6 +37,7 @@ class HeadlessRuntime:
         self.loop = loop
         self.db = DatabaseManager()
         self.trading_system = TradingSystem()
+        self.trading_system.telegram.db = self.db
         self.system_running = False
 
     def trigger_manual_button(self, symbol, signal_type, quantity=None):
@@ -55,6 +57,34 @@ class HeadlessRuntime:
 
     def reload_telegram_channels(self):
         self.trading_system.telegram.reload_channels()
+
+    async def alert_loop(self):
+        logger.info("Telegram scheduled alert loop started")
+        while True:
+            try:
+                now = datetime.now()
+                current_time = now.strftime('%H:%M')
+                current_date = now.strftime('%Y-%m-%d')
+                for alert in self.db.get_active_alerts():
+                    if alert['alert_time'] != current_time:
+                        continue
+
+                    last_sent = alert.get('last_sent')
+                    should_send = False
+                    if alert['repeat_mode'] == 'daily':
+                        should_send = not last_sent or not last_sent.startswith(current_date)
+                    else:
+                        should_send = not last_sent
+
+                    if should_send:
+                        self.trading_system.telegram.send_alert_message(alert['message'])
+                        self.db.update_alert_last_sent(alert['id'])
+                        if alert['repeat_mode'] != 'daily':
+                            self.db.toggle_alert_active(alert['id'], False)
+                        logger.info("Sent scheduled Telegram alert #%s", alert['id'])
+            except Exception:
+                logger.exception("Scheduled alert loop error")
+            await asyncio.sleep(30)
 
 
 async def start_runtime(runtime):
@@ -76,6 +106,7 @@ def main():
 
     runtime = HeadlessRuntime(loop)
     asyncio.run_coroutine_threadsafe(start_runtime(runtime), loop).result()
+    asyncio.run_coroutine_threadsafe(runtime.alert_loop(), loop)
     webhook_server.set_gui(runtime)
 
     logger.info("SPX Smart server started")
