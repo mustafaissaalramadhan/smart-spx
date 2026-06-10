@@ -14,6 +14,7 @@ import subprocess
 import time
 import requests
 import os
+import json
 from database import DatabaseManager
 
 logger = logging.getLogger(__name__)
@@ -819,8 +820,12 @@ def webhook():
     global webhook_signal_counter
     
     try:
-        # Get JSON data
-        data = request.get_json()
+        # TradingView may send valid JSON as plain text without application/json.
+        data = request.get_json(silent=True)
+        if data is None:
+            raw_body = request.get_data(as_text=True).strip()
+            if raw_body:
+                data = json.loads(raw_body)
         
         if not data:
             return jsonify({"status": "error", "message": "No data received"}), 400
