@@ -282,8 +282,8 @@ def _admin_page(message=''):
             <input name="chat_id" value="{chat_id}" placeholder="Chat ID">
             <input name="channel_link" value="{link}" placeholder="Link">
             <input name="token" value="{token}" placeholder="Bot token">
-            <button type="submit">Save</button>
-            <button formaction="/admin/channel/{channel_id}/delete" class="danger">Delete</button>
+            <button type="submit">حفظ / Save</button>
+            <button formaction="/admin/channel/{channel_id}/delete" class="danger">حذف / Delete</button>
         </form>
         """)
 
@@ -320,7 +320,7 @@ def _admin_page(message=''):
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SPX Smart Admin</title>
+  <title>SPX Smart Admin | لوحة التحكم</title>
   <style>
     body {{ margin:0; font-family: Arial, sans-serif; background:#101418; color:#f4f7fb; }}
     main {{ max-width:1180px; margin:0 auto; padding:24px; }}
@@ -331,7 +331,7 @@ def _admin_page(message=''):
     .cards {{ display:grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap:10px; margin:16px 0; }}
     .card {{ background:#182029; border:1px solid #2b3745; padding:14px; }}
     .card b {{ display:block; font-size:22px; margin-top:6px; }}
-    .row {{ display:grid; grid-template-columns: 80px 150px 170px 220px 1fr 70px 80px; gap:8px; margin:8px 0; }}
+    .row {{ display:grid; grid-template-columns: 80px 150px 170px 220px 1fr 105px 105px; gap:8px; margin:8px 0; }}
     .settings-grid {{ display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; }}
     .risk-grid {{ display:grid; grid-template-columns: 60px repeat(4, 150px 90px) 70px; gap:8px; align-items:end; margin:10px 0; }}
     label {{ display:flex; flex-direction:column; gap:5px; color:#9aa7b5; }}
@@ -350,71 +350,72 @@ def _admin_page(message=''):
 </head>
 <body>
 <main>
-  <h1>SPX Smart Admin</h1>
-  <div class="muted">Webhook: <code>{webhook_url}</code></div>
+  <h1>لوحة تحكم SPX Smart | SPX Smart Admin</h1>
+  <div class="muted">رابط الويب هوك | Webhook: <code>{webhook_url}</code></div>
   {message_html}
 
   <section class="cards">
-    <div class="card">System<b>{html.escape(status_text)}</b></div>
-    <div class="card">Balance<b>{html.escape(balance or 'N/A')}</b></div>
-    <div class="card">Active Trades<b>{len(active_trades)}</b></div>
-    <div class="card">Signals Today<b>{signals['total']}</b></div>
+    <div class="card">حالة النظام | System<b>{html.escape(status_text)}</b></div>
+    <div class="card">الرصيد | Balance<b>{html.escape(balance or 'N/A')}</b></div>
+    <div class="card">الصفقات النشطة | Active Trades<b>{len(active_trades)}</b></div>
+    <div class="card">إشارات اليوم | Signals Today<b>{signals['total']}</b></div>
   </section>
 
   <section class="panel">
-    <h2>Trading Settings</h2>
+    <h2>إعدادات التداول | Trading Settings</h2>
     <form class="settings-grid" method="post" action="/admin/settings">
-      <label>Min Option<input name="MIN_OPTION_PRICE" value="{_setting('MIN_OPTION_PRICE')}"></label>
-      <label>Max Option<input name="MAX_OPTION_PRICE" value="{_setting('MAX_OPTION_PRICE')}"></label>
-      <label>Entry Min<input name="ENTRY_RANGE_MIN" value="{_setting('ENTRY_RANGE_MIN')}"></label>
-      <label>Entry Max<input name="ENTRY_RANGE_MAX" value="{_setting('ENTRY_RANGE_MAX')}"></label>
-      <label>Selection Start<input name="SELECTION_RANGE_START" value="{_setting('SELECTION_RANGE_START')}"></label>
-      <label>Selection End<input name="SELECTION_RANGE_END" value="{_setting('SELECTION_RANGE_END')}"></label>
-      <label>Selection Mode<input name="SELECTION_MODE" value="{_setting('SELECTION_MODE')}"></label>
-      <label>Min Profit Target<input name="MIN_PROFIT_TARGET" value="{_setting('MIN_PROFIT_TARGET')}"></label>
-      <label>IBKR Port<input name="IBKR_PORT" value="{_setting('IBKR_PORT')}"></label>
-      <label>IBKR Readonly<select name="IBKR_READONLY"><option value="true" {'selected' if config.IBKR_READONLY else ''}>true</option><option value="false" {'selected' if not config.IBKR_READONLY else ''}>false</option></select></label>
-      <label>Cleanup Days<input name="days_to_keep" value="{_fmt(cleanup.get('days_to_keep'), '30')}"></label>
-      <button type="submit">Save Settings</button>
+      <label>أقل سعر عقد | Min Option<input name="MIN_OPTION_PRICE" value="{_setting('MIN_OPTION_PRICE')}"></label>
+      <label>أعلى سعر عقد | Max Option<input name="MAX_OPTION_PRICE" value="{_setting('MAX_OPTION_PRICE')}"></label>
+      <label>أقل دخول | Entry Min<input name="ENTRY_RANGE_MIN" value="{_setting('ENTRY_RANGE_MIN')}"></label>
+      <label>أعلى دخول | Entry Max<input name="ENTRY_RANGE_MAX" value="{_setting('ENTRY_RANGE_MAX')}"></label>
+      <label>بداية الاختيار | Selection Start<input name="SELECTION_RANGE_START" value="{_setting('SELECTION_RANGE_START')}"></label>
+      <label>نهاية الاختيار | Selection End<input name="SELECTION_RANGE_END" value="{_setting('SELECTION_RANGE_END')}"></label>
+      <label>طريقة الاختيار | Selection Mode<input name="SELECTION_MODE" value="{_setting('SELECTION_MODE')}"></label>
+      <label>ربح التكرار | Min Profit Target<input name="MIN_PROFIT_TARGET" value="{_setting('MIN_PROFIT_TARGET')}"></label>
+      <label>منفذ IBKR | IBKR Port<input name="IBKR_PORT" value="{_setting('IBKR_PORT')}"></label>
+      <label>قراءة فقط | IBKR Readonly<select name="IBKR_READONLY"><option value="true" {'selected' if config.IBKR_READONLY else ''}>true</option><option value="false" {'selected' if not config.IBKR_READONLY else ''}>false</option></select></label>
+      <label>أيام التنظيف | Cleanup Days<input name="days_to_keep" value="{_fmt(cleanup.get('days_to_keep'), '30')}"></label>
+      <button type="submit">حفظ الإعدادات | Save Settings</button>
     </form>
   </section>
 
   <section class="panel">
-    <h2>Risk Settings</h2>
+    <h2>إعدادات المخاطر | Risk Settings</h2>
     {''.join(risk_forms)}
   </section>
 
   <section class="panel">
-    <h2>Active Trades</h2>
+    <h2>الصفقات النشطة | Active Trades</h2>
     {_render_trade_table(active_trades)}
   </section>
 
   <section class="panel">
-    <h2>Trade History</h2>
+    <h2>سجل الصفقات | Trade History</h2>
     {_render_trade_table(closed_trades, closed=True)}
   </section>
 
   <section class="panel">
-    <h2>Telegram Channels</h2>
+    <h2>قنوات تيليجرام | Telegram Channels</h2>
     {rows_html}
   </section>
 
   <section class="panel">
-    <h2>Add Channel</h2>
+    <h2>إضافة قناة | Add Channel</h2>
     <form class="row" method="post" action="/admin/channel/add">
       <input name="symbol" placeholder="SPX">
-      <input name="channel_name" placeholder="Channel name">
+      <input name="channel_name" placeholder="اسم القناة / Channel name">
       <input name="chat_id" placeholder="Chat ID">
       <input name="channel_link" placeholder="https://t.me/...">
       <input name="token" placeholder="Bot token">
-      <button type="submit">Add</button>
+      <button type="submit">إضافة / Add</button>
     </form>
   </section>
 
   <section class="panel actions">
-    <form method="post" action="/admin/reload"><button type="submit">Reload Telegram</button></form>
-    <form method="post" action="/admin/restart"><button type="submit">Restart App</button></form>
-    <a href="/status"><button type="button">Status</button></a>
+    <form method="post" action="/admin/reload"><button type="submit">تحديث تيليجرام | Reload Telegram</button></form>
+    <form method="post" action="/admin/telegram/test"><button type="submit">اختبار تيليجرام | Test Telegram</button></form>
+    <form method="post" action="/admin/restart"><button type="submit">إعادة تشغيل | Restart App</button></form>
+    <a href="/status"><button type="button">الحالة | Status</button></a>
   </section>
 </main>
 </body>
@@ -470,6 +471,21 @@ def admin_reload():
         return _admin_required()
     _reload_runtime_channels()
     return redirect('/admin?msg=Telegram channels reloaded')
+
+@app.route('/admin/telegram/test', methods=['POST'])
+def admin_test_telegram():
+    if not _check_admin_auth():
+        return _admin_required()
+    try:
+        from telegram_manager import TelegramManager
+        manager = TelegramManager()
+        ok = manager.test_connection()
+        _reload_runtime_channels()
+        msg = 'Telegram test sent' if ok else 'Telegram test failed'
+    except Exception as e:
+        logger.exception("Telegram test failed")
+        msg = f'Telegram test error: {e}'
+    return redirect(f'/admin?msg={requests.utils.quote(msg)}')
 
 @app.route('/admin/settings', methods=['POST'])
 def admin_save_settings():
