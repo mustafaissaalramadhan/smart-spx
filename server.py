@@ -7,7 +7,7 @@ import asyncio
 import logging
 import threading
 from logging.handlers import RotatingFileHandler
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 
 import config
@@ -31,7 +31,10 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
-RIYADH_TZ = ZoneInfo("Asia/Riyadh")
+try:
+    RIYADH_TZ = ZoneInfo("Asia/Riyadh")
+except Exception:
+    RIYADH_TZ = timezone(timedelta(hours=3))
 
 
 class HeadlessRuntime:

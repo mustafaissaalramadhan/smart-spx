@@ -4,7 +4,7 @@ SPX Smart - Webhook Server
 """
 from flask import Flask, request, jsonify, Response, redirect
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 import html
 import hmac
@@ -23,7 +23,10 @@ gui_instance = None  # Store GUI instance to trigger manual buttons
 ngrok_process = None
 webhook_url = None
 webhook_signal_counter = 0  # Track total signals received
-RIYADH_TZ = ZoneInfo("Asia/Riyadh")
+try:
+    RIYADH_TZ = ZoneInfo("Asia/Riyadh")
+except Exception:
+    RIYADH_TZ = timezone(timedelta(hours=3))
 
 def riyadh_now():
     return datetime.now(RIYADH_TZ)
@@ -232,6 +235,59 @@ def _repeat_options(current):
         opts.append(f'<option value="{value}" {selected}>{label}</option>')
     return ''.join(opts)
 
+def _admin_symbol():
+    symbol = request.args.get('symbol', 'ALL').strip().upper()
+    if symbol in config.SUPPORTED_SYMBOLS:
+        return symbol
+    return 'ALL'
+
+def _admin_url(symbol='ALL', msg=''):
+    params = []
+    if symbol and symbol != 'ALL':
+        params.append(f"symbol={html.escape(symbol)}")
+    if msg:
+        params.append(f"msg={requests.utils.quote(msg)}")
+    return '/admin' + (('?' + '&'.join(params)) if params else '')
+
+def _form_symbol_filter():
+    symbol = request.form.get('symbol_filter', 'ALL').strip().upper()
+    if symbol in config.SUPPORTED_SYMBOLS:
+        return symbol
+    return 'ALL'
+
+def _redirect_admin_msg(msg):
+    return redirect(_admin_url(_form_symbol_filter(), msg))
+
+def _send_test_for_symbol(symbol):
+    db = DatabaseManager()
+    channels = db.get_all_telegram_channels()
+    if symbol != 'ALL':
+        channels = [ch for ch in channels if (ch.get('symbol') or '').upper() == symbol]
+    if not channels:
+        return False, 0
+    sent = 0
+    now = riyadh_now().strftime('%Y-%m-%d %H:%M:%S')
+    for channel in channels:
+        try:
+            url = f"https://api.telegram.org/bot{channel['token']}/sendMessage"
+            payload = {
+                'chat_id': channel['chat_id'],
+                'text': (
+                    "✅ اختبار الاتصال\n\n"
+                    "النظام: SPX Smart\n"
+                    f"القناة: {channel.get('channel_name', '')}\n"
+                    f"الرمز: {channel.get('symbol', '')}\n"
+                    f"الوقت - الرياض: {now}"
+                ),
+                'parse_mode': 'HTML'
+            }
+            response = requests.post(url, json=payload, timeout=10)
+            if response.status_code == 200 and response.json().get('ok'):
+                sent += 1
+        except Exception:
+            logger.exception("Telegram test failed for %s", channel.get('symbol', 'unknown'))
+    return sent > 0, sent
+
 def _upsert_env(values):
     env_path = '.env'
     existing = {}
@@ -274,13 +330,19 @@ def _apply_runtime_settings(values):
 
 def _admin_page(message=''):
     db = DatabaseManager()
+    selected_symbol = _admin_symbol()
     channels = db.get_all_telegram_channels()
     alerts = db.get_all_telegram_alerts()
     active_trades = db.get_active_trades()
     closed_trades = db.get_closed_trades()
+    if selected_symbol != 'ALL':
+        channels = [ch for ch in channels if (ch.get('symbol') or '').upper() == selected_symbol]
+        active_trades = [tr for tr in active_trades if (tr.get('symbol') or '').upper() == selected_symbol]
+        closed_trades = [tr for tr in closed_trades if (tr.get('symbol') or '').upper() == selected_symbol]
     now_riyadh = riyadh_now()
     signals = db.get_signal_count(now_riyadh.strftime('%Y-%m-%d'))
     cleanup = db.get_cleanup_settings() or {}
+    selected_input = '' if selected_symbol == 'ALL' else f'<input type="hidden" name="symbol_filter" value="{selected_symbol}">'
     rows = []
     for channel in channels:
         channel_id = int(channel['id'])
@@ -291,6 +353,7 @@ def _admin_page(message=''):
         link = html.escape(channel.get('channel_link') or '')
         rows.append(f"""
         <form class="row" method="post" action="/admin/channel/{channel_id}/update">
+            {selected_input}
             <input name="symbol" value="{symbol}" placeholder="Symbol">
             <input name="channel_name" value="{name}" placeholder="Name">
             <input name="chat_id" value="{chat_id}" placeholder="Chat ID">
@@ -323,7 +386,8 @@ def _admin_page(message=''):
         """)
     alerts_html = ''.join(alert_rows) or '<tr><td colspan="7" class="muted">لا توجد تنبيهات / No alerts.</td></tr>'
     command_rows = []
-    for symbol in config.SUPPORTED_SYMBOLS:
+    command_symbols = config.SUPPORTED_SYMBOLS if selected_symbol == 'ALL' else [selected_symbol]
+    for symbol in command_symbols:
         for side in ('CALL', 'PUT'):
             payload = html.escape(f'{{"type": "{side}", "symbol": "{symbol}"}}')
             payload_qty = html.escape(f'{{"type": "{side}", "symbol": "{symbol}", "quantity": 1}}')
@@ -347,10 +411,12 @@ def _admin_page(message=''):
         except Exception:
             balance = ''
     risk_forms = []
-    for symbol in config.SUPPORTED_SYMBOLS:
+    risk_symbols = config.SUPPORTED_SYMBOLS if selected_symbol == 'ALL' else [selected_symbol]
+    for symbol in risk_symbols:
         risk = db.get_risk_settings(symbol)
         risk_forms.append(f"""
         <form class="risk-grid" method="post" action="/admin/risk/{symbol}">
+          {selected_input}
           <b>{symbol}</b>
           <label>Stop Loss<select name="stop_loss_type">{_type_options(risk['stop_loss']['type'])}</select></label>
           <input name="stop_loss_value" value="{_fmt(risk['stop_loss']['value'], '0')}" placeholder="0">
@@ -363,6 +429,11 @@ def _admin_page(message=''):
           <button type="submit">Save</button>
         </form>
         """)
+    symbol_tabs = []
+    for symbol in ['ALL'] + list(config.SUPPORTED_SYMBOLS):
+        active = ' active' if symbol == selected_symbol else ''
+        label = 'الكل | ALL' if symbol == 'ALL' else symbol
+        symbol_tabs.append(f'<a class="tab{active}" href="{_admin_url(symbol)}">{label}</a>')
     return f"""
 <!doctype html>
 <html lang="en">
@@ -378,6 +449,9 @@ def _admin_page(message=''):
     .topbar {{ display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap; margin-bottom:12px; }}
     .clock {{ background:#182029; border:1px solid #2b3745; padding:10px 12px; min-width:250px; text-align:right; }}
     .clock b {{ display:block; font-size:20px; margin-top:4px; }}
+    .tabs {{ display:flex; gap:8px; flex-wrap:wrap; margin:14px 0; }}
+    .tab {{ color:#dbe7f3; text-decoration:none; background:#182029; border:1px solid #2b3745; padding:9px 14px; }}
+    .tab.active {{ background:#2f80ed; border-color:#2f80ed; color:#fff; }}
     .panel {{ background:#182029; border:1px solid #2b3745; padding:16px; margin:16px 0; }}
     .msg {{ background:#123d2b; border:1px solid #2e8b57; padding:10px; margin:12px 0; }}
     .cards {{ display:grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap:10px; margin:16px 0; }}
@@ -417,6 +491,7 @@ def _admin_page(message=''):
     </div>
   </div>
   {message_html}
+  <nav class="tabs">{''.join(symbol_tabs)}</nav>
 
   <section class="cards">
     <div class="card">حالة النظام | System<b>{html.escape(status_text)}</b></div>
@@ -428,6 +503,7 @@ def _admin_page(message=''):
   <section class="panel">
     <h2>إعدادات التداول | Trading Settings</h2>
     <form class="settings-grid" method="post" action="/admin/settings">
+      {selected_input}
       <label>أقل سعر عقد | Min Option<input name="MIN_OPTION_PRICE" value="{_setting('MIN_OPTION_PRICE')}"></label>
       <label>أعلى سعر عقد | Max Option<input name="MAX_OPTION_PRICE" value="{_setting('MAX_OPTION_PRICE')}"></label>
       <label>أقل دخول | Entry Min<input name="ENTRY_RANGE_MIN" value="{_setting('ENTRY_RANGE_MIN')}"></label>
@@ -466,7 +542,8 @@ def _admin_page(message=''):
   <section class="panel">
     <h2>إضافة قناة | Add Channel</h2>
     <form class="row" method="post" action="/admin/channel/add">
-      <input name="symbol" placeholder="SPX">
+      {selected_input}
+      <input name="symbol" value="{'' if selected_symbol == 'ALL' else html.escape(selected_symbol)}" placeholder="SPX">
       <input name="channel_name" placeholder="اسم القناة / Channel name">
       <input name="chat_id" placeholder="Chat ID">
       <input name="channel_link" placeholder="https://t.me/...">
@@ -478,6 +555,7 @@ def _admin_page(message=''):
   <section class="panel">
     <h2>تنبيهات تيليجرام المجدولة | Scheduled Telegram Alerts</h2>
     <form class="alert-grid" method="post" action="/admin/alert/add">
+      {selected_input}
       <label>الوقت - الرياض | Riyadh Time<input name="alert_time" type="time" required></label>
       <label>التكرار | Repeat<select name="repeat_mode">{_repeat_options('daily')}</select></label>
       <label>الرسالة | Message<textarea name="message" required placeholder="اكتب رسالة التنبيه هنا"></textarea></label>
@@ -503,9 +581,9 @@ def _admin_page(message=''):
   </section>
 
   <section class="panel actions">
-    <form method="post" action="/admin/reload"><button type="submit">تحديث تيليجرام | Reload Telegram</button></form>
-    <form method="post" action="/admin/telegram/test"><button type="submit">اختبار تيليجرام | Test Telegram</button></form>
-    <form method="post" action="/admin/restart"><button type="submit">إعادة تشغيل | Restart App</button></form>
+    <form method="post" action="/admin/reload">{selected_input}<button type="submit">تحديث تيليجرام | Reload Telegram</button></form>
+    <form method="post" action="/admin/telegram/test">{selected_input}<button type="submit">اختبار تيليجرام | Test Telegram</button></form>
+    <form method="post" action="/admin/restart">{selected_input}<button type="submit">إعادة تشغيل | Restart App</button></form>
     <a href="/status"><button type="button">الحالة | Status</button></a>
   </section>
 </main>
@@ -550,7 +628,7 @@ def admin_add_channel():
         request.form.get('channel_link', '').strip()
     )
     _reload_runtime_channels()
-    return redirect('/admin?msg=Channel added')
+    return _redirect_admin_msg('Channel added')
 
 @app.route('/admin/channel/<int:channel_id>/update', methods=['POST'])
 def admin_update_channel(channel_id):
@@ -565,7 +643,7 @@ def admin_update_channel(channel_id):
         request.form.get('channel_link', '').strip()
     )
     _reload_runtime_channels()
-    return redirect('/admin?msg=Channel updated')
+    return _redirect_admin_msg('Channel updated')
 
 @app.route('/admin/channel/<int:channel_id>/delete', methods=['POST'])
 def admin_delete_channel(channel_id):
@@ -573,29 +651,27 @@ def admin_delete_channel(channel_id):
         return _admin_required()
     DatabaseManager().delete_telegram_channel(channel_id)
     _reload_runtime_channels()
-    return redirect('/admin?msg=Channel deleted')
+    return _redirect_admin_msg('Channel deleted')
 
 @app.route('/admin/reload', methods=['POST'])
 def admin_reload():
     if not _check_admin_auth():
         return _admin_required()
     _reload_runtime_channels()
-    return redirect('/admin?msg=Telegram channels reloaded')
+    return _redirect_admin_msg('Telegram channels reloaded')
 
 @app.route('/admin/telegram/test', methods=['POST'])
 def admin_test_telegram():
     if not _check_admin_auth():
         return _admin_required()
     try:
-        from telegram_manager import TelegramManager
-        manager = TelegramManager()
-        ok = manager.test_connection()
+        ok, sent = _send_test_for_symbol(_form_symbol_filter())
         _reload_runtime_channels()
-        msg = 'Telegram test sent' if ok else 'Telegram test failed'
+        msg = f'Telegram test sent to {sent} channel(s)' if ok else 'Telegram test failed'
     except Exception as e:
         logger.exception("Telegram test failed")
         msg = f'Telegram test error: {e}'
-    return redirect(f'/admin?msg={requests.utils.quote(msg)}')
+    return _redirect_admin_msg(msg)
 
 @app.route('/admin/alert/add', methods=['POST'])
 def admin_add_alert():
@@ -605,16 +681,16 @@ def admin_add_alert():
     message = request.form.get('message', '').strip()
     repeat_mode = request.form.get('repeat_mode', 'daily').strip()
     if not alert_time or not message:
-        return redirect('/admin?msg=Alert time and message are required')
+        return _redirect_admin_msg('Alert time and message are required')
     DatabaseManager().add_telegram_alert(alert_time, message, repeat_mode)
-    return redirect('/admin?msg=Scheduled alert added')
+    return _redirect_admin_msg('Scheduled alert added')
 
 @app.route('/admin/alert/<int:alert_id>/delete', methods=['POST'])
 def admin_delete_alert(alert_id):
     if not _check_admin_auth():
         return _admin_required()
     DatabaseManager().delete_telegram_alert(alert_id)
-    return redirect('/admin?msg=Scheduled alert deleted')
+    return _redirect_admin_msg('Scheduled alert deleted')
 
 @app.route('/admin/alert/<int:alert_id>/toggle', methods=['POST'])
 def admin_toggle_alert(alert_id):
@@ -624,7 +700,7 @@ def admin_toggle_alert(alert_id):
     alert = next((item for item in db.get_all_telegram_alerts() if item['id'] == alert_id), None)
     if alert:
         db.toggle_alert_active(alert_id, not bool(alert.get('active')))
-    return redirect('/admin?msg=Scheduled alert updated')
+    return _redirect_admin_msg('Scheduled alert updated')
 
 @app.route('/admin/settings', methods=['POST'])
 def admin_save_settings():
@@ -647,7 +723,7 @@ def admin_save_settings():
         )
     except Exception as e:
         logger.warning("Could not save cleanup settings: %s", e)
-    return redirect('/admin?msg=Settings saved')
+    return _redirect_admin_msg('Settings saved')
 
 @app.route('/admin/risk/<symbol>', methods=['POST'])
 def admin_save_risk(symbol):
@@ -673,7 +749,7 @@ def admin_save_risk(symbol):
         }
     }
     DatabaseManager().save_risk_settings(symbol, settings)
-    return redirect(f'/admin?msg=Risk settings saved for {symbol}')
+    return _redirect_admin_msg(f'Risk settings saved for {symbol}')
 
 @app.route('/admin/restart', methods=['POST'])
 def admin_restart():

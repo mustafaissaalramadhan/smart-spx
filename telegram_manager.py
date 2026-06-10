@@ -6,7 +6,7 @@ import requests
 from telegram import Bot
 from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 from typing import Dict, Optional, List
 import config
@@ -15,7 +15,10 @@ import json
 import os
 
 logger = logging.getLogger(__name__)
-RIYADH_TZ = ZoneInfo("Asia/Riyadh")
+try:
+    RIYADH_TZ = ZoneInfo("Asia/Riyadh")
+except Exception:
+    RIYADH_TZ = timezone(timedelta(hours=3))
 
 def riyadh_now():
     return datetime.now(RIYADH_TZ)
