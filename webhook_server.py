@@ -313,7 +313,10 @@ def _upsert_env(values):
         f.writelines(lines)
 
 def _apply_runtime_settings(values):
-    numeric_ints = {'IBKR_PORT', 'IBKR_CLIENT_ID', 'FLASK_PORT'}
+    numeric_ints = {
+        'IBKR_PORT', 'IBKR_CLIENT_ID', 'FLASK_PORT',
+        'SELECTION_RANGE_START', 'SELECTION_RANGE_END'
+    }
     numeric_floats = {
         'MIN_OPTION_PRICE', 'MAX_OPTION_PRICE', 'ENTRY_RANGE_MIN', 'ENTRY_RANGE_MAX',
         'MIN_PROFIT_TARGET', 'FAILED_TRADE_THRESHOLD'
