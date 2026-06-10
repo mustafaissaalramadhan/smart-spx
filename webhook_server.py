@@ -5,6 +5,7 @@ SPX Smart - Webhook Server
 from flask import Flask, request, jsonify, Response, redirect
 import asyncio
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import html
 import hmac
 import config
@@ -22,6 +23,10 @@ gui_instance = None  # Store GUI instance to trigger manual buttons
 ngrok_process = None
 webhook_url = None
 webhook_signal_counter = 0  # Track total signals received
+RIYADH_TZ = ZoneInfo("Asia/Riyadh")
+
+def riyadh_now():
+    return datetime.now(RIYADH_TZ)
 
 def start_ngrok():
     """Start ngrok tunnel and get public webhook URL"""
@@ -273,7 +278,8 @@ def _admin_page(message=''):
     alerts = db.get_all_telegram_alerts()
     active_trades = db.get_active_trades()
     closed_trades = db.get_closed_trades()
-    signals = db.get_signal_count(datetime.now().strftime('%Y-%m-%d'))
+    now_riyadh = riyadh_now()
+    signals = db.get_signal_count(now_riyadh.strftime('%Y-%m-%d'))
     cleanup = db.get_cleanup_settings() or {}
     rows = []
     for channel in channels:
@@ -331,6 +337,8 @@ def _admin_page(message=''):
             """)
     message_html = f'<div class="msg">{html.escape(message)}</div>' if message else ''
     webhook_url = html.escape(request.host_url.rstrip('/') + '/webhook')
+    riyadh_display = html.escape(now_riyadh.strftime('%Y-%m-%d %H:%M:%S'))
+    riyadh_iso = html.escape(now_riyadh.isoformat())
     status_text = 'running' if gui_instance and getattr(gui_instance, 'system_running', False) else 'stopped'
     balance = ''
     if gui_instance and hasattr(gui_instance, 'trading_system'):
@@ -367,6 +375,9 @@ def _admin_page(message=''):
     main {{ max-width:1180px; margin:0 auto; padding:24px; }}
     h1 {{ margin:0 0 8px; font-size:26px; }}
     .muted {{ color:#9aa7b5; }}
+    .topbar {{ display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap; margin-bottom:12px; }}
+    .clock {{ background:#182029; border:1px solid #2b3745; padding:10px 12px; min-width:250px; text-align:right; }}
+    .clock b {{ display:block; font-size:20px; margin-top:4px; }}
     .panel {{ background:#182029; border:1px solid #2b3745; padding:16px; margin:16px 0; }}
     .msg {{ background:#123d2b; border:1px solid #2e8b57; padding:10px; margin:12px 0; }}
     .cards {{ display:grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap:10px; margin:16px 0; }}
@@ -395,8 +406,16 @@ def _admin_page(message=''):
 </head>
 <body>
 <main>
-  <h1>لوحة تحكم SPX Smart | SPX Smart Admin</h1>
-  <div class="muted">رابط الويب هوك | Webhook: <code>{webhook_url}</code></div>
+  <div class="topbar">
+    <div>
+      <h1>لوحة تحكم SPX Smart | SPX Smart Admin</h1>
+      <div class="muted">رابط الويب هوك | Webhook: <code>{webhook_url}</code></div>
+    </div>
+    <div class="clock">
+      توقيت السعودية - الرياض | Saudi Arabia - Riyadh
+      <b id="riyadh-clock" data-now="{riyadh_iso}">{riyadh_display}</b>
+    </div>
+  </div>
   {message_html}
 
   <section class="cards">
@@ -459,7 +478,7 @@ def _admin_page(message=''):
   <section class="panel">
     <h2>تنبيهات تيليجرام المجدولة | Scheduled Telegram Alerts</h2>
     <form class="alert-grid" method="post" action="/admin/alert/add">
-      <label>الوقت | Time<input name="alert_time" type="time" required></label>
+      <label>الوقت - الرياض | Riyadh Time<input name="alert_time" type="time" required></label>
       <label>التكرار | Repeat<select name="repeat_mode">{_repeat_options('daily')}</select></label>
       <label>الرسالة | Message<textarea name="message" required placeholder="اكتب رسالة التنبيه هنا"></textarea></label>
       <button type="submit">إضافة تنبيه | Add Alert</button>
@@ -490,6 +509,25 @@ def _admin_page(message=''):
     <a href="/status"><button type="button">الحالة | Status</button></a>
   </section>
 </main>
+<script>
+  const clock = document.getElementById('riyadh-clock');
+  let riyadhTime = new Date(clock.dataset.now);
+  function tickRiyadhClock() {{
+    riyadhTime = new Date(riyadhTime.getTime() + 1000);
+    const text = new Intl.DateTimeFormat('en-CA', {{
+      timeZone: 'Asia/Riyadh',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    }}).format(riyadhTime).replace(',', '');
+    clock.textContent = text;
+  }}
+  setInterval(tickRiyadhClock, 1000);
+</script>
 </body>
 </html>
 """
@@ -738,7 +776,7 @@ def webhook():
         signal_number = webhook_signal_counter
         
         # Log signal
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = riyadh_now().strftime("%Y-%m-%d %H:%M:%S")
         logger.info(f"\n{'='*60}")
         logger.info(f"📡 Webhook Received #{signal_number}: {timestamp}")
         logger.info(f"🎯 Signal: {signal_type} {symbol}")
@@ -796,7 +834,7 @@ def status():
             "status": "running" if gui_instance.system_running else "stopped",
             "balance": f"${balance:,.2f}",
             "active_trades": active_count,
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            "timestamp": riyadh_now().strftime("%Y-%m-%d %H:%M:%S")
         }), 200
     else:
         return jsonify({

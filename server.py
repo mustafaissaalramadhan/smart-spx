@@ -8,6 +8,7 @@ import logging
 import threading
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import config
 import webhook_server
@@ -30,6 +31,7 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+RIYADH_TZ = ZoneInfo("Asia/Riyadh")
 
 
 class HeadlessRuntime:
@@ -62,7 +64,7 @@ class HeadlessRuntime:
         logger.info("Telegram scheduled alert loop started")
         while True:
             try:
-                now = datetime.now()
+                now = datetime.now(RIYADH_TZ)
                 current_time = now.strftime('%H:%M')
                 current_date = now.strftime('%Y-%m-%d')
                 for alert in self.db.get_active_alerts():

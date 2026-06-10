@@ -7,6 +7,7 @@ from telegram import Bot
 from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import Dict, Optional, List
 import config
 import logging
@@ -14,6 +15,10 @@ import json
 import os
 
 logger = logging.getLogger(__name__)
+RIYADH_TZ = ZoneInfo("Asia/Riyadh")
+
+def riyadh_now():
+    return datetime.now(RIYADH_TZ)
 
 class TelegramManager:
     def __init__(self):
@@ -189,7 +194,7 @@ class TelegramManager:
                     url = f"https://api.telegram.org/bot{channel['token']}/sendMessage"
                     payload = {
                         'chat_id': channel['chat_id'],
-                        'text': f"✅ اختبار الاتصال\n\nالنظام: SPX Smart\nالقناة: {channel['name']}\nالرمز: {symbol}\nالوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                        'text': f"✅ اختبار الاتصال\n\nالنظام: SPX Smart\nالقناة: {channel['name']}\nالرمز: {symbol}\nالوقت - الرياض: {riyadh_now().strftime('%Y-%m-%d %H:%M:%S')}",
                         'parse_mode': 'HTML'
                     }
                     
@@ -897,9 +902,10 @@ class TelegramManager:
                         
                         url = f"https://api.telegram.org/bot{token}/sendMessage"
                         
+                        sent_at = riyadh_now().strftime('%Y-%m-%d %H:%M:%S')
                         payload = {
                             'chat_id': chat_id,
-                            'text': message,
+                            'text': f"{message}\n\nوقت السعودية - الرياض: {sent_at}",
                             'parse_mode': 'HTML'
                         }
                         
@@ -922,9 +928,10 @@ class TelegramManager:
                 chat_id = config.TELEGRAM_CHAT_ID
                 url = f"https://api.telegram.org/bot{token}/sendMessage"
                 
+                sent_at = riyadh_now().strftime('%Y-%m-%d %H:%M:%S')
                 payload = {
                     'chat_id': chat_id,
-                    'text': message,
+                    'text': f"{message}\n\nوقت السعودية - الرياض: {sent_at}",
                     'parse_mode': 'HTML'
                 }
                 
