@@ -18,7 +18,7 @@ TELEGRAM_CHANNEL_LINK = "https://t.me/SPXSmartPro"
 IBKR_HOST = os.getenv('IBKR_HOST', '127.0.0.1')
 IBKR_PORT = int(os.getenv('IBKR_PORT', '7497'))  # 7497 for paper, 7496 for live
 IBKR_CLIENT_ID = int(os.getenv('IBKR_CLIENT_ID', '10'))
-IBKR_READONLY = True  # Always read-only mode
+IBKR_READONLY = os.getenv('IBKR_READONLY', 'true').lower() == 'true'
 
 # ==================== Flask/Webhook Settings ====================
 FLASK_HOST = os.getenv('FLASK_HOST', '0.0.0.0')
