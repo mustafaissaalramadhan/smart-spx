@@ -2,14 +2,17 @@
 SPX Smart - Webhook Server
 خادم Webhook لاستقبال الإشارات من TradingView
 """
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response, redirect
 import asyncio
 from datetime import datetime
+import html
+import hmac
 import config
 import logging
 import subprocess
 import time
 import requests
+from database import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -142,6 +145,161 @@ def set_gui(gui):
     global gui_instance
     gui_instance = gui
     logger.info(f"✅ GUI instance set for webhook triggers")
+
+def _admin_enabled():
+    return bool(config.ADMIN_USERNAME and config.ADMIN_PASSWORD)
+
+def _check_admin_auth():
+    auth = request.authorization
+    if not auth or not _admin_enabled():
+        return False
+    return (
+        hmac.compare_digest(auth.username, config.ADMIN_USERNAME)
+        and hmac.compare_digest(auth.password, config.ADMIN_PASSWORD)
+    )
+
+def _admin_required():
+    return Response(
+        "Authentication required",
+        401,
+        {"WWW-Authenticate": 'Basic realm="SPX Smart Admin"'}
+    )
+
+def _reload_runtime_channels():
+    if gui_instance and hasattr(gui_instance, 'reload_telegram_channels'):
+        gui_instance.reload_telegram_channels()
+    elif gui_instance and hasattr(gui_instance, 'trading_system'):
+        gui_instance.trading_system.telegram.reload_channels()
+
+def _admin_page(message=''):
+    channels = DatabaseManager().get_all_telegram_channels()
+    rows = []
+    for channel in channels:
+        channel_id = int(channel['id'])
+        token = html.escape(channel.get('token') or '')
+        chat_id = html.escape(channel.get('chat_id') or '')
+        name = html.escape(channel.get('channel_name') or '')
+        symbol = html.escape(channel.get('symbol') or '')
+        link = html.escape(channel.get('channel_link') or '')
+        rows.append(f"""
+        <form class="row" method="post" action="/admin/channel/{channel_id}/update">
+            <input name="symbol" value="{symbol}" placeholder="Symbol">
+            <input name="channel_name" value="{name}" placeholder="Name">
+            <input name="chat_id" value="{chat_id}" placeholder="Chat ID">
+            <input name="channel_link" value="{link}" placeholder="Link">
+            <input name="token" value="{token}" placeholder="Bot token">
+            <button type="submit">Save</button>
+            <button formaction="/admin/channel/{channel_id}/delete" class="danger">Delete</button>
+        </form>
+        """)
+
+    rows_html = "\n".join(rows) or '<p class="muted">No channels yet.</p>'
+    message_html = f'<div class="msg">{html.escape(message)}</div>' if message else ''
+    webhook_url = html.escape(request.host_url.rstrip('/') + '/webhook')
+    return f"""
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SPX Smart Admin</title>
+  <style>
+    body {{ margin:0; font-family: Arial, sans-serif; background:#101418; color:#f4f7fb; }}
+    main {{ max-width:1180px; margin:0 auto; padding:24px; }}
+    h1 {{ margin:0 0 8px; font-size:26px; }}
+    .muted {{ color:#9aa7b5; }}
+    .panel {{ background:#182029; border:1px solid #2b3745; padding:16px; margin:16px 0; }}
+    .msg {{ background:#123d2b; border:1px solid #2e8b57; padding:10px; margin:12px 0; }}
+    .row {{ display:grid; grid-template-columns: 80px 150px 170px 220px 1fr 70px 80px; gap:8px; margin:8px 0; }}
+    input {{ background:#0f151c; color:#fff; border:1px solid #344252; padding:9px; min-width:0; }}
+    button {{ background:#2f80ed; color:white; border:0; padding:9px 12px; cursor:pointer; }}
+    .danger {{ background:#c24141; }}
+    .actions {{ display:flex; gap:8px; flex-wrap:wrap; }}
+    code {{ background:#0f151c; padding:3px 6px; }}
+    @media (max-width: 900px) {{ .row {{ grid-template-columns: 1fr; }} }}
+  </style>
+</head>
+<body>
+<main>
+  <h1>SPX Smart Admin</h1>
+  <div class="muted">Webhook: <code>{webhook_url}</code></div>
+  {message_html}
+
+  <section class="panel">
+    <h2>Telegram Channels</h2>
+    {rows_html}
+  </section>
+
+  <section class="panel">
+    <h2>Add Channel</h2>
+    <form class="row" method="post" action="/admin/channel/add">
+      <input name="symbol" placeholder="SPX">
+      <input name="channel_name" placeholder="Channel name">
+      <input name="chat_id" placeholder="Chat ID">
+      <input name="channel_link" placeholder="https://t.me/...">
+      <input name="token" placeholder="Bot token">
+      <button type="submit">Add</button>
+    </form>
+  </section>
+
+  <section class="panel actions">
+    <form method="post" action="/admin/reload"><button type="submit">Reload Telegram</button></form>
+    <a href="/status"><button type="button">Status</button></a>
+  </section>
+</main>
+</body>
+</html>
+"""
+
+@app.route('/admin', methods=['GET'])
+def admin_home():
+    if not _check_admin_auth():
+        return _admin_required()
+    return _admin_page(request.args.get('msg', ''))
+
+@app.route('/admin/channel/add', methods=['POST'])
+def admin_add_channel():
+    if not _check_admin_auth():
+        return _admin_required()
+    DatabaseManager().add_telegram_channel(
+        request.form.get('token', '').strip(),
+        request.form.get('chat_id', '').strip(),
+        request.form.get('channel_name', '').strip(),
+        request.form.get('symbol', '').strip().upper(),
+        request.form.get('channel_link', '').strip()
+    )
+    _reload_runtime_channels()
+    return redirect('/admin?msg=Channel added')
+
+@app.route('/admin/channel/<int:channel_id>/update', methods=['POST'])
+def admin_update_channel(channel_id):
+    if not _check_admin_auth():
+        return _admin_required()
+    DatabaseManager().update_telegram_channel(
+        channel_id,
+        request.form.get('token', '').strip(),
+        request.form.get('chat_id', '').strip(),
+        request.form.get('channel_name', '').strip(),
+        request.form.get('symbol', '').strip().upper(),
+        request.form.get('channel_link', '').strip()
+    )
+    _reload_runtime_channels()
+    return redirect('/admin?msg=Channel updated')
+
+@app.route('/admin/channel/<int:channel_id>/delete', methods=['POST'])
+def admin_delete_channel(channel_id):
+    if not _check_admin_auth():
+        return _admin_required()
+    DatabaseManager().delete_telegram_channel(channel_id)
+    _reload_runtime_channels()
+    return redirect('/admin?msg=Channel deleted')
+
+@app.route('/admin/reload', methods=['POST'])
+def admin_reload():
+    if not _check_admin_auth():
+        return _admin_required()
+    _reload_runtime_channels()
+    return redirect('/admin?msg=Telegram channels reloaded')
 
 @app.route('/', methods=['GET'])
 def home():

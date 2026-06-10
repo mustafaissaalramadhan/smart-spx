@@ -53,6 +53,9 @@ class HeadlessRuntime:
         except Exception:
             logger.exception("Webhook signal processing failed")
 
+    def reload_telegram_channels(self):
+        self.trading_system.telegram.reload_channels()
+
 
 async def start_runtime(runtime):
     ok = await runtime.trading_system.start()
