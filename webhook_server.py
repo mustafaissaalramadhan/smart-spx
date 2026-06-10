@@ -12,6 +12,7 @@ import logging
 import subprocess
 import time
 import requests
+import os
 from database import DatabaseManager
 
 logger = logging.getLogger(__name__)
@@ -171,8 +172,101 @@ def _reload_runtime_channels():
     elif gui_instance and hasattr(gui_instance, 'trading_system'):
         gui_instance.trading_system.telegram.reload_channels()
 
+def _fmt(value, default=''):
+    if value is None:
+        return default
+    if isinstance(value, float):
+        return f"{value:.2f}"
+    return html.escape(str(value))
+
+def _render_trade_table(trades, closed=False):
+    if not trades:
+        return '<p class="muted">No trades.</p>'
+    extra = '<th>Exit</th><th>P/L</th>' if closed else '<th>Current</th><th>High</th>'
+    rows = []
+    for trade in trades[:100]:
+        if closed:
+            tail = f"<td>{_fmt(trade.get('exit_price'))}</td><td>{_fmt(trade.get('profit_loss'))}</td>"
+        else:
+            tail = f"<td>{_fmt(trade.get('current_price'))}</td><td>{_fmt(trade.get('highest_price'))}</td>"
+        rows.append(f"""
+        <tr>
+          <td>{_fmt(trade.get('id'))}</td>
+          <td>{_fmt(trade.get('symbol'))}</td>
+          <td>{_fmt(trade.get('trade_type'))}</td>
+          <td>{_fmt(trade.get('strike_price'))}</td>
+          <td>{_fmt(trade.get('entry_price'))}</td>
+          <td>{_fmt(trade.get('quantity'))}/{_fmt(trade.get('pending_quantity'))}</td>
+          <td>{_fmt(trade.get('entry_time'))}</td>
+          {tail}
+        </tr>
+        """)
+    return f"""
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Symbol</th><th>Type</th><th>Strike</th><th>Entry</th><th>Qty</th><th>Time</th>{extra}</tr></thead>
+        <tbody>{''.join(rows)}</tbody>
+      </table>
+    </div>
+    """
+
+def _setting(name, default=''):
+    return html.escape(str(os.getenv(name, getattr(config, name, default))))
+
+def _type_options(current):
+    opts = []
+    for value in ('none', 'percentage', 'amount'):
+        selected = 'selected' if value == current else ''
+        opts.append(f'<option value="{value}" {selected}>{value}</option>')
+    return ''.join(opts)
+
+def _upsert_env(values):
+    env_path = '.env'
+    existing = {}
+    lines = []
+    if os.path.exists(env_path):
+        with open(env_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                raw = line.rstrip('\n')
+                if '=' in raw and not raw.lstrip().startswith('#'):
+                    key = raw.split('=', 1)[0]
+                    existing[key] = True
+                    if key in values:
+                        lines.append(f"{key}={values[key]}\n")
+                    else:
+                        lines.append(line)
+                else:
+                    lines.append(line)
+    for key, value in values.items():
+        if key not in existing:
+            lines.append(f"{key}={value}\n")
+    with open(env_path, 'w', encoding='utf-8') as f:
+        f.writelines(lines)
+
+def _apply_runtime_settings(values):
+    numeric_ints = {'IBKR_PORT', 'IBKR_CLIENT_ID', 'FLASK_PORT'}
+    numeric_floats = {
+        'MIN_OPTION_PRICE', 'MAX_OPTION_PRICE', 'ENTRY_RANGE_MIN', 'ENTRY_RANGE_MAX',
+        'MIN_PROFIT_TARGET', 'FAILED_TRADE_THRESHOLD'
+    }
+    booleans = {'IBKR_READONLY'}
+    for key, value in values.items():
+        if key in numeric_ints:
+            setattr(config, key, int(value))
+        elif key in numeric_floats:
+            setattr(config, key, float(value))
+        elif key in booleans:
+            setattr(config, key, value.lower() == 'true')
+        else:
+            setattr(config, key, value)
+
 def _admin_page(message=''):
-    channels = DatabaseManager().get_all_telegram_channels()
+    db = DatabaseManager()
+    channels = db.get_all_telegram_channels()
+    active_trades = db.get_active_trades()
+    closed_trades = db.get_closed_trades()
+    signals = db.get_signal_count(datetime.now().strftime('%Y-%m-%d'))
+    cleanup = db.get_cleanup_settings() or {}
     rows = []
     for channel in channels:
         channel_id = int(channel['id'])
@@ -196,6 +290,30 @@ def _admin_page(message=''):
     rows_html = "\n".join(rows) or '<p class="muted">No channels yet.</p>'
     message_html = f'<div class="msg">{html.escape(message)}</div>' if message else ''
     webhook_url = html.escape(request.host_url.rstrip('/') + '/webhook')
+    status_text = 'running' if gui_instance and getattr(gui_instance, 'system_running', False) else 'stopped'
+    balance = ''
+    if gui_instance and hasattr(gui_instance, 'trading_system'):
+        try:
+            balance = f"${gui_instance.trading_system.get_current_balance():,.2f}"
+        except Exception:
+            balance = ''
+    risk_forms = []
+    for symbol in config.SUPPORTED_SYMBOLS:
+        risk = db.get_risk_settings(symbol)
+        risk_forms.append(f"""
+        <form class="risk-grid" method="post" action="/admin/risk/{symbol}">
+          <b>{symbol}</b>
+          <label>Stop Loss<select name="stop_loss_type">{_type_options(risk['stop_loss']['type'])}</select></label>
+          <input name="stop_loss_value" value="{_fmt(risk['stop_loss']['value'], '0')}" placeholder="0">
+          <label>Trailing<select name="trailing_stop_type">{_type_options(risk['trailing_stop']['type'])}</select></label>
+          <input name="trailing_stop_value" value="{_fmt(risk['trailing_stop']['value'], '0')}" placeholder="0">
+          <label>Capital<select name="capital_protection_type">{_type_options(risk['capital_protection']['type'])}</select></label>
+          <input name="capital_protection_value" value="{_fmt(risk['capital_protection']['value'], '0')}" placeholder="0">
+          <label>Target<select name="profit_target_type">{_type_options(risk['profit_target']['type'])}</select></label>
+          <input name="profit_target_value" value="{_fmt(risk['profit_target']['value'], '0')}" placeholder="0">
+          <button type="submit">Save</button>
+        </form>
+        """)
     return f"""
 <!doctype html>
 <html lang="en">
@@ -210,13 +328,24 @@ def _admin_page(message=''):
     .muted {{ color:#9aa7b5; }}
     .panel {{ background:#182029; border:1px solid #2b3745; padding:16px; margin:16px 0; }}
     .msg {{ background:#123d2b; border:1px solid #2e8b57; padding:10px; margin:12px 0; }}
+    .cards {{ display:grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap:10px; margin:16px 0; }}
+    .card {{ background:#182029; border:1px solid #2b3745; padding:14px; }}
+    .card b {{ display:block; font-size:22px; margin-top:6px; }}
     .row {{ display:grid; grid-template-columns: 80px 150px 170px 220px 1fr 70px 80px; gap:8px; margin:8px 0; }}
+    .settings-grid {{ display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; }}
+    .risk-grid {{ display:grid; grid-template-columns: 60px repeat(4, 150px 90px) 70px; gap:8px; align-items:end; margin:10px 0; }}
+    label {{ display:flex; flex-direction:column; gap:5px; color:#9aa7b5; }}
     input {{ background:#0f151c; color:#fff; border:1px solid #344252; padding:9px; min-width:0; }}
+    select {{ background:#0f151c; color:#fff; border:1px solid #344252; padding:9px; min-width:0; }}
     button {{ background:#2f80ed; color:white; border:0; padding:9px 12px; cursor:pointer; }}
     .danger {{ background:#c24141; }}
     .actions {{ display:flex; gap:8px; flex-wrap:wrap; }}
     code {{ background:#0f151c; padding:3px 6px; }}
-    @media (max-width: 900px) {{ .row {{ grid-template-columns: 1fr; }} }}
+    table {{ width:100%; border-collapse:collapse; font-size:14px; }}
+    th, td {{ border-bottom:1px solid #2b3745; padding:8px; text-align:left; }}
+    th {{ color:#9aa7b5; }}
+    .table-wrap {{ overflow:auto; }}
+    @media (max-width: 1100px) {{ .row, .settings-grid, .risk-grid, .cards {{ grid-template-columns: 1fr; }} }}
   </style>
 </head>
 <body>
@@ -224,6 +353,46 @@ def _admin_page(message=''):
   <h1>SPX Smart Admin</h1>
   <div class="muted">Webhook: <code>{webhook_url}</code></div>
   {message_html}
+
+  <section class="cards">
+    <div class="card">System<b>{html.escape(status_text)}</b></div>
+    <div class="card">Balance<b>{html.escape(balance or 'N/A')}</b></div>
+    <div class="card">Active Trades<b>{len(active_trades)}</b></div>
+    <div class="card">Signals Today<b>{signals['total']}</b></div>
+  </section>
+
+  <section class="panel">
+    <h2>Trading Settings</h2>
+    <form class="settings-grid" method="post" action="/admin/settings">
+      <label>Min Option<input name="MIN_OPTION_PRICE" value="{_setting('MIN_OPTION_PRICE')}"></label>
+      <label>Max Option<input name="MAX_OPTION_PRICE" value="{_setting('MAX_OPTION_PRICE')}"></label>
+      <label>Entry Min<input name="ENTRY_RANGE_MIN" value="{_setting('ENTRY_RANGE_MIN')}"></label>
+      <label>Entry Max<input name="ENTRY_RANGE_MAX" value="{_setting('ENTRY_RANGE_MAX')}"></label>
+      <label>Selection Start<input name="SELECTION_RANGE_START" value="{_setting('SELECTION_RANGE_START')}"></label>
+      <label>Selection End<input name="SELECTION_RANGE_END" value="{_setting('SELECTION_RANGE_END')}"></label>
+      <label>Selection Mode<input name="SELECTION_MODE" value="{_setting('SELECTION_MODE')}"></label>
+      <label>Min Profit Target<input name="MIN_PROFIT_TARGET" value="{_setting('MIN_PROFIT_TARGET')}"></label>
+      <label>IBKR Port<input name="IBKR_PORT" value="{_setting('IBKR_PORT')}"></label>
+      <label>IBKR Readonly<select name="IBKR_READONLY"><option value="true" {'selected' if config.IBKR_READONLY else ''}>true</option><option value="false" {'selected' if not config.IBKR_READONLY else ''}>false</option></select></label>
+      <label>Cleanup Days<input name="days_to_keep" value="{_fmt(cleanup.get('days_to_keep'), '30')}"></label>
+      <button type="submit">Save Settings</button>
+    </form>
+  </section>
+
+  <section class="panel">
+    <h2>Risk Settings</h2>
+    {''.join(risk_forms)}
+  </section>
+
+  <section class="panel">
+    <h2>Active Trades</h2>
+    {_render_trade_table(active_trades)}
+  </section>
+
+  <section class="panel">
+    <h2>Trade History</h2>
+    {_render_trade_table(closed_trades, closed=True)}
+  </section>
 
   <section class="panel">
     <h2>Telegram Channels</h2>
@@ -244,6 +413,7 @@ def _admin_page(message=''):
 
   <section class="panel actions">
     <form method="post" action="/admin/reload"><button type="submit">Reload Telegram</button></form>
+    <form method="post" action="/admin/restart"><button type="submit">Restart App</button></form>
     <a href="/status"><button type="button">Status</button></a>
   </section>
 </main>
@@ -300,6 +470,66 @@ def admin_reload():
         return _admin_required()
     _reload_runtime_channels()
     return redirect('/admin?msg=Telegram channels reloaded')
+
+@app.route('/admin/settings', methods=['POST'])
+def admin_save_settings():
+    if not _check_admin_auth():
+        return _admin_required()
+    keys = [
+        'MIN_OPTION_PRICE', 'MAX_OPTION_PRICE', 'ENTRY_RANGE_MIN', 'ENTRY_RANGE_MAX',
+        'SELECTION_RANGE_START', 'SELECTION_RANGE_END', 'SELECTION_MODE',
+        'MIN_PROFIT_TARGET', 'IBKR_PORT', 'IBKR_READONLY'
+    ]
+    values = {key: request.form.get(key, '').strip() for key in keys}
+    _upsert_env(values)
+    _apply_runtime_settings(values)
+    try:
+        DatabaseManager().save_cleanup_settings(
+            True,
+            'monthly',
+            '',
+            int(request.form.get('days_to_keep', '30') or 30)
+        )
+    except Exception as e:
+        logger.warning("Could not save cleanup settings: %s", e)
+    return redirect('/admin?msg=Settings saved')
+
+@app.route('/admin/risk/<symbol>', methods=['POST'])
+def admin_save_risk(symbol):
+    if not _check_admin_auth():
+        return _admin_required()
+    symbol = symbol.upper()
+    settings = {
+        'stop_loss': {
+            'type': request.form.get('stop_loss_type', 'none'),
+            'value': float(request.form.get('stop_loss_value', '0') or 0)
+        },
+        'trailing_stop': {
+            'type': request.form.get('trailing_stop_type', 'none'),
+            'value': float(request.form.get('trailing_stop_value', '0') or 0)
+        },
+        'capital_protection': {
+            'type': request.form.get('capital_protection_type', 'none'),
+            'value': float(request.form.get('capital_protection_value', '0') or 0)
+        },
+        'profit_target': {
+            'type': request.form.get('profit_target_type', 'none'),
+            'value': float(request.form.get('profit_target_value', '0') or 0)
+        }
+    }
+    DatabaseManager().save_risk_settings(symbol, settings)
+    return redirect(f'/admin?msg=Risk settings saved for {symbol}')
+
+@app.route('/admin/restart', methods=['POST'])
+def admin_restart():
+    if not _check_admin_auth():
+        return _admin_required()
+    def delayed_exit():
+        time.sleep(1)
+        os._exit(0)
+    import threading
+    threading.Thread(target=delayed_exit, daemon=True).start()
+    return "Restarting SPX Smart. Refresh /admin in 15 seconds.", 200
 
 @app.route('/', methods=['GET'])
 def home():
