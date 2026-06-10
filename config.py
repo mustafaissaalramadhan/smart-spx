@@ -34,17 +34,17 @@ SUPPORTED_SYMBOLS = ['SPX', 'NDX', 'SPY', 'QQQ']  # All supported symbols
 DEFAULT_WATCHLIST_SYMBOLS = ['SPX', 'SPY', 'QQQ', 'NDX']  # جميع الرموز المدعومة
 
 # Option Search Settings
-MIN_OPTION_PRICE = 1.00  # Minimum option price for trading (can adjust from $0.50+)
-MAX_OPTION_PRICE = 5.00  # Maximum option price for trading - نطاق الدخول الفعلي
-SEARCH_RANGE = 50  # Number of strikes to search
-MIN_CONTRACTS_IN_RANGE = 15  # Minimum contracts in range to stop fetching more pages
-SELECTION_RANGE_START = 1  # Default: start from 1st contract (for auto trading)
-SELECTION_RANGE_END = 4  # Default: end at 4th contract (for auto trading)
-SELECTION_MODE = 'highest'  # Options: 'highest', 'lowest', 'closest'
+MIN_OPTION_PRICE = float(os.getenv('MIN_OPTION_PRICE', '1.00'))  # Minimum option price for trading
+MAX_OPTION_PRICE = float(os.getenv('MAX_OPTION_PRICE', '5.00'))  # Maximum option price for trading
+SEARCH_RANGE = int(os.getenv('SEARCH_RANGE', '50'))  # Number of strikes to search
+MIN_CONTRACTS_IN_RANGE = int(os.getenv('MIN_CONTRACTS_IN_RANGE', '15'))  # Minimum contracts in range
+SELECTION_RANGE_START = int(os.getenv('SELECTION_RANGE_START', '1'))  # Default: start from 1st contract
+SELECTION_RANGE_END = int(os.getenv('SELECTION_RANGE_END', '4'))  # Default: end at 4th contract
+SELECTION_MODE = os.getenv('SELECTION_MODE', 'highest')  # Options: 'highest', 'lowest', 'closest'
 
 # Duplicate Prevention Settings
-MIN_PROFIT_TARGET = 2.00  # Minimum profit ($) required before allowing new trades of same type
-FAILED_TRADE_THRESHOLD = 3.00  # Trades below this price are considered failed (ignored in profit check)
+MIN_PROFIT_TARGET = float(os.getenv('MIN_PROFIT_TARGET', '2.00'))  # Minimum profit before allowing new trades
+FAILED_TRADE_THRESHOLD = float(os.getenv('FAILED_TRADE_THRESHOLD', '3.00'))  # Failed trade threshold
 
 # ==================== Watchlist Settings ====================
 # Batch Fetching System: Optimized for smart grouping
