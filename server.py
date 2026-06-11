@@ -111,7 +111,7 @@ def main():
     loop_thread.start()
 
     runtime = HeadlessRuntime(loop)
-    asyncio.run_coroutine_threadsafe(start_runtime(runtime), loop).result()
+    asyncio.run_coroutine_threadsafe(start_runtime(runtime), loop)
     asyncio.run_coroutine_threadsafe(runtime.alert_loop(), loop)
     webhook_server.set_gui(runtime)
 
