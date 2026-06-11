@@ -289,6 +289,37 @@ def _send_test_for_symbol(symbol):
             logger.exception("Telegram test failed for %s", channel.get('symbol', 'unknown'))
     return sent > 0, sent
 
+def _systemctl_status(service):
+    try:
+        result = subprocess.run(
+            ['systemctl', 'is-active', service],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        return result.stdout.strip() or 'unknown'
+    except Exception:
+        return 'unknown'
+
+def _port_open(port):
+    import socket
+    try:
+        with socket.create_connection(('127.0.0.1', port), timeout=1):
+            return True
+    except OSError:
+        return False
+
+def _run_systemctl(action, service):
+    allowed_actions = {'start', 'stop', 'restart'}
+    allowed_services = {'spx-smart', 'ibgateway', 'spx-vnc'}
+    if action not in allowed_actions or service not in allowed_services:
+        raise ValueError('Invalid service action')
+    subprocess.Popen(
+        ['systemctl', action, service],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    )
+
 def _upsert_env(values):
     env_path = '.env'
     existing = {}
@@ -408,6 +439,10 @@ def _admin_page(message=''):
     riyadh_display = html.escape(now_riyadh.strftime('%Y-%m-%d %H:%M:%S'))
     riyadh_iso = html.escape(now_riyadh.isoformat())
     status_text = 'running' if gui_instance and getattr(gui_instance, 'system_running', False) else 'stopped'
+    spx_service = _systemctl_status('spx-smart')
+    ibgateway_service = _systemctl_status('ibgateway')
+    vnc_service = _systemctl_status('spx-vnc')
+    ibkr_api = 'open' if _port_open(config.IBKR_PORT) else 'closed'
     balance = ''
     if gui_instance and hasattr(gui_instance, 'trading_system'):
         try:
@@ -484,6 +519,12 @@ def _admin_page(message=''):
     .manual-card button {{ width:100%; font-weight:bold; }}
     .call {{ background:#16a34a; }}
     .put {{ background:#dc2626; }}
+    .server-grid {{ display:grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap:10px; margin-bottom:12px; }}
+    .server-card {{ background:#0f151c; border:1px solid #2b3745; padding:12px; }}
+    .server-card b {{ display:block; font-size:18px; margin-top:5px; }}
+    .service-actions {{ display:flex; gap:8px; flex-wrap:wrap; }}
+    .service-actions form {{ margin:0; }}
+    .warn {{ background:#b45309; }}
     .panel {{ background:#182029; border:1px solid #2b3745; padding:16px; margin:16px 0; }}
     .msg {{ background:#123d2b; border:1px solid #2e8b57; padding:10px; margin:12px 0; }}
     .cards {{ display:grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap:10px; margin:16px 0; }}
@@ -507,7 +548,7 @@ def _admin_page(message=''):
     th, td {{ border-bottom:1px solid #2b3745; padding:8px; text-align:left; }}
     th {{ color:#9aa7b5; }}
     .table-wrap {{ overflow:auto; }}
-    @media (max-width: 1100px) {{ .row, .settings-grid, .risk-grid, .cards, .alert-grid, .manual-grid {{ grid-template-columns: 1fr; }} }}
+    @media (max-width: 1100px) {{ .row, .settings-grid, .risk-grid, .cards, .alert-grid, .manual-grid, .server-grid {{ grid-template-columns: 1fr; }} }}
   </style>
 </head>
 <body>
@@ -530,6 +571,24 @@ def _admin_page(message=''):
     <div class="card">الرصيد | Balance<b>{html.escape(balance or 'N/A')}</b></div>
     <div class="card">الصفقات النشطة | Active Trades<b>{len(active_trades)}</b></div>
     <div class="card">إشارات اليوم | Signals Today<b>{signals['total']}</b></div>
+  </section>
+
+  <section class="panel">
+    <h2>تحكم السيرفر | Server Control</h2>
+    <div class="server-grid">
+      <div class="server-card">SPX Smart Service<b>{html.escape(spx_service)}</b></div>
+      <div class="server-card">IB Gateway Service<b>{html.escape(ibgateway_service)}</b></div>
+      <div class="server-card">IBKR API {config.IBKR_PORT}<b>{html.escape(ibkr_api)}</b></div>
+      <div class="server-card">VNC Service<b>{html.escape(vnc_service)}</b></div>
+    </div>
+    <div class="service-actions">
+      <form method="post" action="/admin/service/spx-smart/restart">{selected_input}<button type="submit">إعادة تشغيل النظام | Restart App</button></form>
+      <form method="post" action="/admin/service/spx-smart/stop">{selected_input}<button type="submit" class="danger">إيقاف النظام | Stop App</button></form>
+      <form method="post" action="/admin/service/ibgateway/start">{selected_input}<button type="submit">تشغيل IB Gateway</button></form>
+      <form method="post" action="/admin/service/ibgateway/restart">{selected_input}<button type="submit" class="warn">إعادة تشغيل IB Gateway</button></form>
+      <form method="post" action="/admin/service/ibgateway/stop">{selected_input}<button type="submit" class="danger">إيقاف IB Gateway</button></form>
+      <form method="post" action="/admin/service/spx-vnc/restart">{selected_input}<button type="submit">إعادة تشغيل VNC</button></form>
+    </div>
   </section>
 
   <section class="panel">
@@ -809,6 +868,19 @@ def admin_save_risk(symbol):
     }
     DatabaseManager().save_risk_settings(symbol, settings)
     return _redirect_admin_msg(f'Risk settings saved for {symbol}')
+
+@app.route('/admin/service/<service>/<action>', methods=['POST'])
+def admin_service_action(service, action):
+    if not _check_admin_auth():
+        return _admin_required()
+    try:
+        _run_systemctl(action, service)
+        if service == 'spx-smart' and action in ('restart', 'stop'):
+            return f"{action} sent to {service}. Refresh /admin in 20 seconds.", 200
+        return _redirect_admin_msg(f'{action} sent to {service}')
+    except Exception as e:
+        logger.exception("Service action failed")
+        return _redirect_admin_msg(f'Service action error: {e}')
 
 @app.route('/admin/restart', methods=['POST'])
 def admin_restart():
