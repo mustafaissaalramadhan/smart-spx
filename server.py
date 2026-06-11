@@ -96,7 +96,8 @@ async def start_runtime(runtime):
     ok = await runtime.trading_system.start()
     runtime.system_running = ok
     if not ok:
-        raise RuntimeError("Trading system failed to start")
+        logger.error("Trading system failed to start; admin panel will remain available")
+    return ok
 
 
 def main():
